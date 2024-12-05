@@ -22,7 +22,8 @@ jobs:
         run: go mod tidy
 
       - name: Build Go binary
-        run: GOOS=linux GOARCH=amd64 go build -o main main.go
+        run: GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
+
 
       - name: Package as zip
         run: zip function.zip main
