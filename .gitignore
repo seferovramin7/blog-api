@@ -1,0 +1,48 @@
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go-specific files
+*.log
+*.test
+*.out
+
+# Dependency directories
+vendor/
+
+# Go build outputs
+main
+function.zip
+
+# Environment variables file
+.env
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Node modules (if applicable)
+node_modules/
+
+# AWS SAM build artifacts
+.aws-sam/
+
+# Coverage and test results
+coverage.out
+*.coverprofile
+
+# Git-specific files
+*.orig
