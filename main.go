@@ -89,7 +89,7 @@ func newDynamoDBClient(cfg appConfig) *dynamodb.Client {
 
 // lambdaHandler processes API Gateway events
 func lambdaHandler(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	log.Printf("Request received: Path = %s, HTTPMethod = %s", req.Path, req.HTTPMethod)
+	log.Printf("Received event: %+v", req)
 
 	httpReq, err := convertAPIGatewayRequestToHTTPRequest(req)
 
