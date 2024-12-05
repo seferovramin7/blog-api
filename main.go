@@ -89,7 +89,10 @@ func newDynamoDBClient(cfg appConfig) *dynamodb.Client {
 
 // lambdaHandler processes API Gateway events
 func lambdaHandler(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Request received: Path = %s, HTTPMethod = %s", req.Path, req.HTTPMethod)
+
 	httpReq, err := convertAPIGatewayRequestToHTTPRequest(req)
+
 	if err != nil {
 		log.Printf("Error converting request: %v", err)
 		return errorResponse(http.StatusInternalServerError, "Failed to parse request", err), nil
