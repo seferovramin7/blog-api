@@ -14,7 +14,7 @@ const (
 )
 
 func SetupRouter(postHandler handlers.PostHandlerInterface) *mux.Router {
-	router := mux.NewRouter()
+	router := mux.NewRouter().StrictSlash(true)
 
 	allowedOrigins := []string{"*"} // We can replace "*" with specific origins for production
 	allowedMethods := []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
