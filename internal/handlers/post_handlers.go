@@ -1,0 +1,224 @@
+package handlers
+
+import (
+	"encoding/json"
+	"errors"
+	"log"
+	"net/http"
+	"strconv"
+
+	"blog-api/internal/models"
+	"github.com/gorilla/mux"
+)
+
+type PostService interface {
+	GetAllPosts(page, limit int) ([]*models.Post, error)
+	GetPostByID(id int) (*models.Post, error)
+	CreatePost(post *models.Post) (*models.Post, error)
+	UpdatePost(id int, post *models.Post) (*models.Post, error)
+	DeletePost(id int) error
+}
+
+type PostHandlerInterface interface {
+	GetAllPosts(w http.ResponseWriter, r *http.Request)
+	GetPostByID(w http.ResponseWriter, r *http.Request)
+	CreatePost(w http.ResponseWriter, r *http.Request)
+	UpdatePost(w http.ResponseWriter, r *http.Request)
+	PatchPost(w http.ResponseWriter, r *http.Request)
+	DeletePost(w http.ResponseWriter, r *http.Request)
+}
+
+var _ PostHandlerInterface = (*PostHandler)(nil)
+
+type PostHandler struct {
+	service PostService
+}
+
+func NewPostHandler(service PostService) *PostHandler {
+	return &PostHandler{service: service}
+}
+
+func parseID(r *http.Request) (int, error) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil || id <= 0 {
+		return 0, errors.New("invalid ID")
+	}
+	return id, nil
+}
+
+func writeJSONResponse(w http.ResponseWriter, data interface{}, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if data != nil {
+		if err := json.NewEncoder(w).Encode(data); err != nil {
+			log.Printf("Error encoding JSON response: %v", err)
+		}
+	}
+}
+
+func (h *PostHandler) GetAllPosts(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	pageStr := query.Get("page")
+	limitStr := query.Get("limit")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	} else if _, err := strconv.ParseFloat(pageStr, 64); err != nil {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		limit = 10
+	} else if _, err := strconv.ParseFloat(limitStr, 64); err != nil {
+		limit = 10
+	}
+
+	posts, err := h.service.GetAllPosts(page, limit)
+	if err != nil {
+		log.Printf("Error fetching posts: %v", err)
+
+		handleError(w, errors.New("failed to fetch posts"), http.StatusInternalServerError)
+		return
+	}
+
+	if posts == nil {
+		posts = []*models.Post{}
+	}
+
+	writeJSONResponse(w, posts, http.StatusOK)
+}
+
+func handleError(w http.ResponseWriter, err error, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	response := map[string]string{
+		"error":       http.StatusText(status),
+		"description": err.Error(),
+	}
+	if encodeErr := json.NewEncoder(w).Encode(response); encodeErr != nil {
+		log.Printf("Failed to encode error response: %v", encodeErr)
+	}
+}
+
+func (h *PostHandler) GetPostByID(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		handleError(w, errors.New("invalid ID"), http.StatusBadRequest)
+		return
+	}
+
+	post, err := h.service.GetPostByID(id)
+	if err != nil {
+		handleError(w, errors.New("post not found"), http.StatusNotFound)
+		return
+	}
+	writeJSONResponse(w, post, http.StatusOK)
+}
+
+func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
+	var post models.Post
+	if err := json.NewDecoder(r.Body).Decode(&post); err != nil {
+		handleError(w, errors.New("Content-Type must be application/json"), http.StatusBadRequest)
+		return
+	}
+
+	//if post.Title == "" {
+	//	handleError(w, custom_errors.New("title cannot be empty"), http.StatusBadRequest)
+	//	return
+	//}
+	//if post.Content == "" {
+	//	handleError(w, custom_errors.New("content cannot be empty"), http.StatusBadRequest)
+	//	return
+	//}
+
+	createdPost, err := h.service.CreatePost(&post)
+	if err != nil {
+		handleError(w, err, http.StatusBadRequest)
+		return
+	}
+
+	writeJSONResponse(w, createdPost, http.StatusCreated)
+}
+
+func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		handleError(w, err, http.StatusBadRequest)
+		return
+	}
+
+	var post models.Post
+	if err := json.NewDecoder(r.Body).Decode(&post); err != nil {
+		handleError(w, errors.New("Content-Type must be application/json"), http.StatusBadRequest)
+		return
+	}
+
+	updatedPost, err := h.service.UpdatePost(id, &post)
+	if err != nil {
+		handleError(w, err, http.StatusBadRequest)
+		return
+	}
+
+	writeJSONResponse(w, updatedPost, http.StatusOK)
+}
+
+func (h *PostHandler) PatchPost(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		handleError(w, err, http.StatusBadRequest)
+		return
+	}
+
+	var updates map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
+		handleError(w, errors.New("Content-Type must be application/json"), http.StatusBadRequest)
+		return
+	}
+
+	post, err := h.service.GetPostByID(id)
+	if err != nil {
+		handleError(w, errors.New("post not found"), http.StatusNotFound)
+		return
+	}
+
+	if title, ok := updates["title"].(string); ok {
+		if title == "" {
+			handleError(w, errors.New("title cannot be empty"), http.StatusBadRequest)
+			return
+		}
+		post.Title = title
+	}
+	if content, ok := updates["content"].(string); ok {
+		post.Content = content
+	}
+	if author, ok := updates["author"].(string); ok {
+		post.Author = author
+	}
+
+	updatedPost, err := h.service.UpdatePost(id, post)
+	if err != nil {
+		handleError(w, err, http.StatusBadRequest)
+		return
+	}
+
+	writeJSONResponse(w, updatedPost, http.StatusOK)
+}
+
+func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		handleError(w, err, http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.DeletePost(id); err != nil {
+		handleError(w, errors.New("post not found"), http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
