@@ -46,13 +46,21 @@ func loadDynamoDBClient() *dynamodb.Client {
 
 func lambdaHandler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	log.Println("Lambda handler invoked")
-	log.Printf("Request Method: %s, Request Path: %s", request.HTTPMethod, request.Path)
-	log.Printf("Request Headers: %v", request.Headers)
-	log.Printf("Request Query Parameters: %v", request.QueryStringParameters)
-	log.Printf("Request Body: %s", request.Body)
+
+	// Log incoming request details
+	log.Printf("Request Details: %+v", request)
 
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
+	}
+
+	// Validate HTTPMethod and Path
+	if request.HTTPMethod == "" || request.Path == "" {
+		log.Println("Invalid request: Missing HTTP method or path")
+		return events.APIGatewayProxyResponse{
+			StatusCode: http.StatusBadRequest,
+			Body:       "Invalid request: Missing HTTP method or path",
+		}, nil
 	}
 
 	client := loadDynamoDBClient()
@@ -65,20 +73,36 @@ func lambdaHandler(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	router := routes.SetupRouter(postHandler)
 
-	// Convert API Gateway request to HTTP request
-	fullURL := fmt.Sprintf("https://%s%s", request.Headers["Host"], request.Path)
+	// Construct full URL safely
+	host := request.Headers["Host"]
+	if host == "" {
+		host = "localhost" // Fallback for local testing
+	}
+	fullURL := fmt.Sprintf("https://%s%s", host, request.Path)
 	log.Printf("Full request URL: %s", fullURL)
 
+	// Create HTTP request
 	httpRequest, err := http.NewRequest(request.HTTPMethod, fullURL, nil)
 	if err != nil {
 		log.Printf("Failed to create HTTP request: %v", err)
 		return events.APIGatewayProxyResponse{StatusCode: 500}, err
 	}
 
+	// Add query parameters to the HTTP request
+	q := httpRequest.URL.Query()
+	for key, value := range request.QueryStringParameters {
+		q.Add(key, value)
+	}
+	httpRequest.URL.RawQuery = q.Encode()
+
+	// Log query parameters
+	log.Printf("Query Parameters: %v", httpRequest.URL.RawQuery)
+
 	// Custom response recorder to capture the response from the router
 	responseRecorder := &responseRecorder{}
 	router.ServeHTTP(responseRecorder, httpRequest)
 
+	// Log response details
 	log.Printf("Response Status Code: %d", responseRecorder.statusCode)
 	log.Printf("Response Body: %s", responseRecorder.body)
 
