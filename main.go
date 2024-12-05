@@ -12,16 +12,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/joho/godotenv"
 	"log"
 	"net/http"
 	"os"
 )
 
 func loadDynamoDBClient() *dynamodb.Client {
-	// Define a custom endpoint resolver
-	customResolver := aws.EndpointResolverFunc(
-		func(service, region string) (aws.Endpoint, error) {
+	customResolver := aws.EndpointResolverWithOptionsFunc(
+		func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 			if service == dynamodb.ServiceID {
 				return aws.Endpoint{
 					URL:           getEnv("DYNAMODB_ENDPOINT", "http://localhost:8000"),
@@ -32,97 +30,72 @@ func loadDynamoDBClient() *dynamodb.Client {
 		},
 	)
 
-	// Load AWS configuration
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithEndpointResolver(customResolver),
+		config.WithEndpointResolverWithOptions(customResolver),
 	)
 	if err != nil {
 		log.Fatalf("Failed to load AWS config: %v", err)
 	}
 
-	log.Println("AWS configuration successfully loaded")
 	return dynamodb.NewFromConfig(cfg)
 }
 
-func lambdaHandler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	log.Println("Lambda handler invoked")
-
-	// Log incoming request details
-	log.Printf("Request Details: %+v", request)
-
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using system environment variables")
-	}
-
-	// Validate HTTPMethod and Path
-	if request.HTTPMethod == "" || request.Path == "" {
-		log.Println("Invalid request: Missing HTTP method or path")
-		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusBadRequest,
-			Body:       "Invalid request: Missing HTTP method or path",
-		}, nil
-	}
-
+func lambdaHandler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	client := loadDynamoDBClient()
 	tableName := getEnv("DYNAMODB_TABLE", "TestTable")
 	repo := repository.NewDynamoPostRepository(client, tableName)
-	log.Println("Using DynamoDB repository")
-
 	service := services.NewPostService(repo)
 	postHandler := handlers.NewPostHandler(service)
 
 	router := routes.SetupRouter(postHandler)
 
-	// Construct full URL safely
-	host := request.Headers["Host"]
-	if host == "" {
-		host = "localhost" // Fallback for local testing
-	}
-	fullURL := fmt.Sprintf("https://%s%s", host, request.Path)
-	log.Printf("Full request URL: %s", fullURL)
-
-	// Create HTTP request
-	httpRequest, err := http.NewRequest(request.HTTPMethod, fullURL, nil)
+	// Convert the Lambda event to an HTTP request
+	httpRequest, err := createHTTPRequestFromAPIGatewayEvent(request)
 	if err != nil {
-		log.Printf("Failed to create HTTP request: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500}, err
+		return events.APIGatewayProxyResponse{
+			StatusCode: http.StatusInternalServerError,
+			Body:       fmt.Sprintf("Failed to create HTTP request: %v", err),
+		}, nil
 	}
-
-	// Add query parameters to the HTTP request
-	q := httpRequest.URL.Query()
-	for key, value := range request.QueryStringParameters {
-		q.Add(key, value)
-	}
-	httpRequest.URL.RawQuery = q.Encode()
-
-	// Log query parameters
-	log.Printf("Query Parameters: %v", httpRequest.URL.RawQuery)
 
 	// Custom response recorder to capture the response from the router
 	responseRecorder := &responseRecorder{}
 	router.ServeHTTP(responseRecorder, httpRequest)
 
-	// Log response details
-	log.Printf("Response Status Code: %d", responseRecorder.statusCode)
-	log.Printf("Response Body: %s", responseRecorder.body)
-
 	return events.APIGatewayProxyResponse{
 		StatusCode: responseRecorder.statusCode,
 		Body:       responseRecorder.body,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
 	}, nil
 }
 
 type responseRecorder struct {
 	statusCode int
 	body       string
+	header     http.Header
 }
 
 func (r *responseRecorder) Header() http.Header         { return http.Header{} }
 func (r *responseRecorder) Write(b []byte) (int, error) { r.body = string(b); return len(b), nil }
 func (r *responseRecorder) WriteHeader(statusCode int)  { r.statusCode = statusCode }
 
+func createHTTPRequestFromAPIGatewayEvent(event events.APIGatewayProxyRequest) (*http.Request, error) {
+	url := fmt.Sprintf("https://%s%s", event.Headers["Host"], event.Path)
+	req, err := http.NewRequest(event.HTTPMethod, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for k, v := range event.Headers {
+		req.Header.Set(k, v)
+	}
+
+	return req, nil
+}
+
 func main() {
-	log.Println("Starting Lambda function")
 	lambda.Start(lambdaHandler)
 }
 
