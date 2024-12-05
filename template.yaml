@@ -1,4 +1,3 @@
-AWSTemplateFormatVersion: '2010-09-09'
 Resources:
   BlogApiFunction:
     Type: AWS::Serverless::Function
@@ -7,8 +6,13 @@ Resources:
       Runtime: go1.x
       CodeUri: .
       Events:
-        ApiEvent:
+        Root:
           Type: Api
           Properties:
-            Path: /v1/
+            Path: /
+            Method: GET
+        Pages:
+          Type: Api
+          Properties:
+            Path: /v1/posts
             Method: ANY
