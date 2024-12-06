@@ -91,8 +91,23 @@ func newDynamoDBClient(cfg appConfig) *dynamodb.Client {
 func lambdaHandler(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	log.Printf("Received event: %+v", req)
 
+	// Extract HTTP method and path
+	httpMethod := req.HTTPMethod
+	path := req.Path
+
+	// Fallback to RequestContext for HTTP method and path
+	if httpMethod == "" && req.RequestContext.HTTPMethod != "" {
+		httpMethod = req.RequestContext.HTTPMethod
+	}
+	if path == "" && req.RequestContext.Path != "" {
+		path = req.RequestContext.Path
+	}
+
+	log.Printf("Parsed HTTP method: %s, Path: %s", httpMethod, path)
+
 	// Check for specific path and method
-	if req.HTTPMethod != "GET" || req.Path != "/v1/posts" {
+	if httpMethod != "GET" || path != "/default/v1/posts" {
+		log.Printf("Unsupported path or method: %s %s", httpMethod, path)
 		return errorResponse(http.StatusNotFound, "Not Found", fmt.Errorf("unsupported path or method")), nil
 	}
 
