@@ -8,10 +8,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.28.6
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.15.20
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.38.0
+	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
 	github.com/go-playground/validator/v10 v10.23.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
 )
 
