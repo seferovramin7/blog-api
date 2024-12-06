@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	APIPrefix  = "/v1"
+	APIPrefix  = "/default/v1"
 	PostsBase  = "/posts"
 	PostWithID = "/posts/{id:[0-9]+}"
 )
