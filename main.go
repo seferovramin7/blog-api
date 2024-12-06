@@ -105,12 +105,6 @@ func lambdaHandler(req events.APIGatewayProxyRequest) (events.APIGatewayProxyRes
 
 	log.Printf("Parsed HTTP method: %s, Path: %s", httpMethod, path)
 
-	// Check for specific path and method
-	if httpMethod != "GET" || path != "/v1/posts" {
-		log.Printf("Unsupported path or method: %s %s", httpMethod, path)
-		return errorResponse(http.StatusNotFound, "Not Found", fmt.Errorf("unsupported path or method")), nil
-	}
-
 	httpReq, err := convertAPIGatewayRequestToHTTPRequest(req)
 	if err != nil {
 		log.Printf("Error converting request: %v", err)
