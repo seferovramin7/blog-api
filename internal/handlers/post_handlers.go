@@ -13,10 +13,10 @@ import (
 
 type PostService interface {
 	GetAllPosts(page, limit int) ([]*models.Post, error)
-	GetPostByID(id int) (*models.Post, error)
+	GetPostByID(id string) (*models.Post, error)
 	CreatePost(post *models.Post) (*models.Post, error)
-	UpdatePost(id int, post *models.Post) (*models.Post, error)
-	DeletePost(id int) error
+	UpdatePost(id string, post *models.Post) (*models.Post, error)
+	DeletePost(id string) error
 }
 
 type PostHandlerInterface interface {
@@ -38,12 +38,9 @@ func NewPostHandler(service PostService) *PostHandler {
 	return &PostHandler{service: service}
 }
 
-func parseID(r *http.Request) (int, error) {
+func parseID(r *http.Request) (string, error) {
 	vars := mux.Vars(r)
-	id, err := strconv.Atoi(vars["id"])
-	if err != nil || id <= 0 {
-		return 0, errors.New("invalid ID")
-	}
+	id := vars["id"]
 	return id, nil
 }
 

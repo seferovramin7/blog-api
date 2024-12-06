@@ -9,10 +9,10 @@ import (
 
 type Repository interface {
 	GetAll(page, limit int) ([]*models.Post, error)
-	GetByID(id int) (*models.Post, error)
+	GetByID(id string) (*models.Post, error)
 	Create(post *models.Post) (*models.Post, error)
-	Update(id int, updatedPost *models.Post) (*models.Post, error)
-	Delete(id int) error
+	Update(id string, updatedPost *models.Post) (*models.Post, error)
+	Delete(id string) error
 }
 
 var _ handlers.PostService = (*PostService)(nil)
@@ -27,7 +27,7 @@ func NewPostService(repo Repository) *PostService {
 
 type NotFoundError struct {
 	Resource string
-	ID       int
+	ID       string
 }
 
 func (e *NotFoundError) Error() string {
@@ -38,7 +38,7 @@ func (s *PostService) GetAllPosts(page, limit int) ([]*models.Post, error) {
 	return s.repo.GetAll(page, limit)
 }
 
-func (s *PostService) GetPostByID(id int) (*models.Post, error) {
+func (s *PostService) GetPostByID(id string) (*models.Post, error) {
 	post, err := s.repo.GetByID(id)
 	if err != nil {
 		return nil, &NotFoundError{Resource: "Post", ID: id}
@@ -58,7 +58,7 @@ func (s *PostService) CreatePost(post *models.Post) (*models.Post, error) {
 	return createdPost, nil
 }
 
-func (s *PostService) UpdatePost(id int, updatedPost *models.Post) (*models.Post, error) {
+func (s *PostService) UpdatePost(id string, updatedPost *models.Post) (*models.Post, error) {
 	if err := updatedPost.Validate(); err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (s *PostService) UpdatePost(id int, updatedPost *models.Post) (*models.Post
 	return updated, nil
 }
 
-func (s *PostService) DeletePost(id int) error {
+func (s *PostService) DeletePost(id string) error {
 	if _, err := s.repo.GetByID(id); err != nil {
 		return &NotFoundError{Resource: "Post", ID: id}
 	}

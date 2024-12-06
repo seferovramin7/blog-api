@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
-	"strconv"
 )
 
 type DynamoPostRepository struct {
@@ -71,11 +70,11 @@ func (r *DynamoPostRepository) GetAll(page, limit int) ([]*models.Post, error) {
 	return posts[start:end], nil
 }
 
-func (r *DynamoPostRepository) GetByID(id int) (*models.Post, error) {
+func (r *DynamoPostRepository) GetByID(id string) (*models.Post, error) {
 	input := &dynamodb.GetItemInput{
 		TableName: &r.TableName,
 		Key: map[string]types.AttributeValue{
-			"ID": &types.AttributeValueMemberN{Value: strconv.Itoa(id)},
+			"ID": &types.AttributeValueMemberS{Value: id},
 		},
 	}
 
@@ -127,7 +126,7 @@ func generateUniqueID() string {
 	return uuid.New().String()
 }
 
-func (r *DynamoPostRepository) Update(id int, updatedPost *models.Post) (*models.Post, error) {
+func (r *DynamoPostRepository) Update(id string, updatedPost *models.Post) (*models.Post, error) {
 	existingPost, err := r.GetByID(id)
 	if err != nil {
 		return nil, err
@@ -140,11 +139,11 @@ func (r *DynamoPostRepository) Update(id int, updatedPost *models.Post) (*models
 	return r.Create(existingPost)
 }
 
-func (r *DynamoPostRepository) Delete(id int) error {
+func (r *DynamoPostRepository) Delete(id string) error {
 	input := &dynamodb.DeleteItemInput{
 		TableName: &r.TableName,
 		Key: map[string]types.AttributeValue{
-			"ID": &types.AttributeValueMemberN{Value: strconv.Itoa(id)},
+			"ID": &types.AttributeValueMemberN{Value: id},
 		},
 	}
 

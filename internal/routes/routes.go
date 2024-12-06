@@ -10,7 +10,7 @@ import (
 const (
 	APIPrefix  = "/v1"
 	PostsBase  = "/posts"
-	PostWithID = "/posts/{id:[0-9]+}"
+	PostWithID = "/posts/{id}"
 )
 
 func SetupRouter(postHandler handlers.PostHandlerInterface) *mux.Router {

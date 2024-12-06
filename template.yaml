@@ -11,6 +11,11 @@ Resources:
           Properties:
             Path: /
             Method: GET
+        PagesById:
+          Type: Api
+          Properties:
+            Path: /v1/posts/{id}
+            Method: ANY
         Pages:
           Type: Api
           Properties:
