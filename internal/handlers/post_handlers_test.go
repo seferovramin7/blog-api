@@ -27,7 +27,7 @@ func (m *MockPostService) GetAllPosts(page, limit int) ([]*models.Post, error) {
 	return posts, args.Error(1)
 }
 
-func (m *MockPostService) GetPostByID(id int) (*models.Post, error) {
+func (m *MockPostService) GetPostByID(id string) (*models.Post, error) {
 	args := m.Called(id)
 	var post *models.Post
 	if args.Get(0) != nil {

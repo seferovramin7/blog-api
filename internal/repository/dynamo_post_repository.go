@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -24,40 +25,50 @@ func NewDynamoPostRepository(client *dynamodb.Client, tableName string) *DynamoP
 }
 
 func (r *DynamoPostRepository) GetAll(page, limit int) ([]*models.Post, error) {
-	input := &dynamodb.ScanInput{
-		TableName: &r.TableName,
-		Limit:     int32Ptr(limit),
+	// Validate inputs
+	if page <= 0 || limit <= 0 {
+		return nil, fmt.Errorf("invalid page (%d) or limit (%d)", page, limit)
 	}
+
+	// Calculate how many items to skip for the requested page
+	itemsToSkip := (page - 1) * limit
 
 	var posts []*models.Post
 	var lastEvaluatedKey map[string]types.AttributeValue
 
 	for {
-		if lastEvaluatedKey != nil {
-			input.ExclusiveStartKey = lastEvaluatedKey
+		// Set up scan input
+		input := &dynamodb.ScanInput{
+			TableName:            &r.TableName,
+			Limit:                aws.Int32(int32(limit)),
+			ExclusiveStartKey:    lastEvaluatedKey,
+			ProjectionExpression: aws.String("ID, Title, Content, CreatedAt"), // Fetch only necessary fields
 		}
 
+		// Execute the scan
 		result, err := r.Client.Scan(context.TODO(), input)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan posts: %w", err)
 		}
 
-		for _, item := range result.Items {
-			post := new(models.Post)
-			if err := attributevalue.UnmarshalMap(item, post); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal post: %w", err)
-			}
-			posts = append(posts, post)
+		// Unmarshal items in a batch
+		var batch []*models.Post
+		if err := attributevalue.UnmarshalListOfMaps(result.Items, &batch); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal posts: %w", err)
 		}
 
+		// Append to the result set
+		posts = append(posts, batch...)
+
+		// Check if we need to continue scanning
 		lastEvaluatedKey = result.LastEvaluatedKey
-		if lastEvaluatedKey == nil || len(posts) >= page*limit {
+		if lastEvaluatedKey == nil || len(posts) > itemsToSkip+limit {
 			break
 		}
 	}
 
-	// Paginate results manually (DynamoDB pagination does not align with custom page logic)
-	start := (page - 1) * limit
+	// Trim results to the requested page
+	start := itemsToSkip
 	if start >= len(posts) {
 		return []*models.Post{}, nil
 	}
