@@ -7,13 +7,11 @@ import (
 	"blog-api/internal/services"
 	"context"
 	"fmt"
-	"log"
-	"os"
-	"time"
-
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
+	"log"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -63,12 +61,6 @@ func loadAppConfig() (appConfig, error) {
 		DynamoDBRegion:   getEnv("DYNAMODB_REGION", "us-east-1"),
 		DynamoDBTable:    getEnv("DYNAMODB_TABLE", "TestTable"),
 	}
-
-	// Add validation if needed. For example:
-	// if cfg.DynamoDBTable == "" {
-	// 	return cfg, fmt.Errorf("DynamoDB table name cannot be empty")
-	// }
-
 	return cfg, nil
 }
 
@@ -96,18 +88,6 @@ func newDynamoDBClient(cfg appConfig) (*dynamodb.Client, error) {
 func getEnv(key, fallback string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
-	}
-	return fallback
-}
-
-// getEnvAsDuration retrieves an environment variable as a time.Duration,
-// falling back if invalid or not present. (Retained for future use if needed.)
-func getEnvAsDuration(key string, fallback time.Duration) time.Duration {
-	if value, exists := os.LookupEnv(key); exists {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
-		log.Printf("Invalid duration format for %s: %s; using fallback %s", key, value, fallback)
 	}
 	return fallback
 }

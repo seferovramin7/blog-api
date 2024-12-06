@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -12,11 +13,11 @@ import (
 )
 
 type PostService interface {
-	GetAllPosts(page, limit int) ([]*models.Post, error)
-	GetPostByID(id string) (*models.Post, error)
-	CreatePost(post *models.Post) (*models.Post, error)
-	UpdatePost(id string, post *models.Post) (*models.Post, error)
-	DeletePost(id string) error
+	GetAllPosts(ctx context.Context, page, limit int) ([]*models.Post, error)
+	GetPostByID(ctx context.Context, id string) (*models.Post, error)
+	CreatePost(ctx context.Context, post *models.Post) (*models.Post, error)
+	UpdatePost(ctx context.Context, id string, post *models.Post) (*models.Post, error)
+	DeletePost(ctx context.Context, id string) error
 }
 
 type PostHandlerInterface interface {
@@ -41,6 +42,9 @@ func NewPostHandler(service PostService) *PostHandler {
 func parseID(r *http.Request) (string, error) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+	if id == "" {
+		return "", errors.New("id is empty")
+	}
 	return id, nil
 }
 
@@ -54,7 +58,20 @@ func writeJSONResponse(w http.ResponseWriter, data interface{}, status int) {
 	}
 }
 
+func handleError(w http.ResponseWriter, err error, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	response := map[string]string{
+		"error":       http.StatusText(status),
+		"description": err.Error(),
+	}
+	if encodeErr := json.NewEncoder(w).Encode(response); encodeErr != nil {
+		log.Printf("Failed to encode error response: %v", encodeErr)
+	}
+}
+
 func (h *PostHandler) GetAllPosts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	query := r.URL.Query()
 
 	pageStr := query.Get("page")
@@ -74,10 +91,9 @@ func (h *PostHandler) GetAllPosts(w http.ResponseWriter, r *http.Request) {
 		limit = 10
 	}
 
-	posts, err := h.service.GetAllPosts(page, limit)
+	posts, err := h.service.GetAllPosts(ctx, page, limit)
 	if err != nil {
 		log.Printf("Error fetching posts: %v", err)
-
 		handleError(w, errors.New("failed to fetch posts"), http.StatusInternalServerError)
 		return
 	}
@@ -89,26 +105,15 @@ func (h *PostHandler) GetAllPosts(w http.ResponseWriter, r *http.Request) {
 	writeJSONResponse(w, posts, http.StatusOK)
 }
 
-func handleError(w http.ResponseWriter, err error, status int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	response := map[string]string{
-		"error":       http.StatusText(status),
-		"description": err.Error(),
-	}
-	if encodeErr := json.NewEncoder(w).Encode(response); encodeErr != nil {
-		log.Printf("Failed to encode error response: %v", encodeErr)
-	}
-}
-
 func (h *PostHandler) GetPostByID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id, err := parseID(r)
 	if err != nil {
 		handleError(w, errors.New("invalid ID"), http.StatusBadRequest)
 		return
 	}
 
-	post, err := h.service.GetPostByID(id)
+	post, err := h.service.GetPostByID(ctx, id)
 	if err != nil {
 		handleError(w, errors.New("post not found"), http.StatusNotFound)
 		return
@@ -117,22 +122,14 @@ func (h *PostHandler) GetPostByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var post models.Post
 	if err := json.NewDecoder(r.Body).Decode(&post); err != nil {
 		handleError(w, errors.New("Content-Type must be application/json"), http.StatusBadRequest)
 		return
 	}
 
-	//if post.Title == "" {
-	//	handleError(w, custom_errors.New("title cannot be empty"), http.StatusBadRequest)
-	//	return
-	//}
-	//if post.Content == "" {
-	//	handleError(w, custom_errors.New("content cannot be empty"), http.StatusBadRequest)
-	//	return
-	//}
-
-	createdPost, err := h.service.CreatePost(&post)
+	createdPost, err := h.service.CreatePost(ctx, &post)
 	if err != nil {
 		handleError(w, err, http.StatusBadRequest)
 		return
@@ -142,6 +139,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id, err := parseID(r)
 	if err != nil {
 		handleError(w, err, http.StatusBadRequest)
@@ -154,7 +152,7 @@ func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedPost, err := h.service.UpdatePost(id, &post)
+	updatedPost, err := h.service.UpdatePost(ctx, id, &post)
 	if err != nil {
 		handleError(w, err, http.StatusBadRequest)
 		return
@@ -164,6 +162,7 @@ func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PostHandler) PatchPost(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id, err := parseID(r)
 	if err != nil {
 		handleError(w, err, http.StatusBadRequest)
@@ -176,7 +175,7 @@ func (h *PostHandler) PatchPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	post, err := h.service.GetPostByID(id)
+	post, err := h.service.GetPostByID(ctx, id)
 	if err != nil {
 		handleError(w, errors.New("post not found"), http.StatusNotFound)
 		return
@@ -196,7 +195,7 @@ func (h *PostHandler) PatchPost(w http.ResponseWriter, r *http.Request) {
 		post.Author = author
 	}
 
-	updatedPost, err := h.service.UpdatePost(id, post)
+	updatedPost, err := h.service.UpdatePost(ctx, id, post)
 	if err != nil {
 		handleError(w, err, http.StatusBadRequest)
 		return
@@ -206,13 +205,14 @@ func (h *PostHandler) PatchPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	id, err := parseID(r)
 	if err != nil {
 		handleError(w, err, http.StatusBadRequest)
 		return
 	}
 
-	if err := h.service.DeletePost(id); err != nil {
+	if err := h.service.DeletePost(ctx, id); err != nil {
 		handleError(w, errors.New("post not found"), http.StatusNotFound)
 		return
 	}
